@@ -7,6 +7,7 @@ import glob
 import os
 import scipy.io
 import logging
+import matplotlib.pyplot as plt
 
 def quickConversion(tmp, myCol=None):
     tmp = tmp.reset_index()
@@ -24,7 +25,12 @@ class matExtraction:
 		self.sID = matfileName.split(os.sep)[-3]
 		self.session = matfileName.split(os.sep)[-2]
 		self.filenamepd = glob.glob(os.path.dirname(matfileName)+os.sep+'*.csv')[0]
-		self.geno = 'toget' ## TODO add genotype and combination with genotype
+		
+		## get the genotype 
+		mainDir = os.path.dirname(os.path.dirname(os.path.dirname(matfileName)))
+		tmp = pd.read_excel(glob.glob(mainDir+os.sep+'*xlsx')[0])
+		self.geno = tmp.loc[tmp['sID']== int(self.sID),'geno'].item()
+		self.sex = tmp.loc[tmp['sID']== int(self.sID),'sex'].item()
 
 	def extractMatfile(self):
 		'''
@@ -57,6 +63,8 @@ class matExtraction:
 		dat = pd.merge(matflo, tmp, on='Trial')
 		dat['sID'] = self.sID
 		dat['session'] = self.session
+		dat['geno'] = self.geno
+		dat['sex'] = self.sex
 
 		### get the category 
 		### --------------------------------------------------------------------------
@@ -83,7 +91,7 @@ class matExtraction:
 		respEnd = dat.loc[(dat['state.mat1']==8) & (dat['state.mat2']==9) & (dat['lick.trigg']==1), ['sID','session','Trial', 'time.s']]
 		respEnd.rename(columns = {'time.s':'timeEnd'}, inplace = True)
 
-		respTime = pd.merge(resp, respEnd, on=['sID','Trial','session'])
+		respTime = pd.merge(resp, respEnd, on=['sID','Trial','session', 'geno', 'sex'])
 		respTime['respTime'] = respTime['timeEnd']-respTime['timeStart']
 
 		return respTime
@@ -157,6 +165,59 @@ allrespTime.to_csv(r'C:\git\WDIL_lick\output'+os.sep+'respTime.csv')
 allLickCount.to_csv(r'C:\git\WDIL_lick\output'+os.sep+'lickCount.csv')
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### TROUBLESHOOTING
+### convert session to days
+
+allLickCount = allLickCount.sort_values(by=['sID','session','Trial'])
+
+dayslist = []
+for i in np.unique(allLickCount['sID']):
+	print(i)
+	tmpDat = allLickCount[allLickCount['sID']==i]
+	tmpDat = pd.DataFrame({'session': np.unique(tmpDat['session'])})
+	tmpDat = tmpDat.reset_index()
+	tmpDat.columns = ['days','session']
+	tmpDat['sID'] = i
+	dayslist.append(tmpDat)
+dayslist = pd.concat(dayslist)
+
+allLickCount = pd.merge(dayslist, allLickCount, on=['session','sID'])
+plt.bar(allLickCount['days'], allLickCount['Trialcount'])
+
+f, ax = plt.subplots(17,1)
+
+uniqueID = np.unique(allLickCount['sID'])
+for i,j in zip(ax,uniqueID):
+	print(i,j)
+	tmp = allLickCount[allLickCount['sID'] == j]
+	i.bar(tmp['days'], tmp['Trialcount'])
+
+sns.distplot(allLickCount['Trialcount'])
+
+plt.plot(allLickCount['Trialcount'],'.', alpha=0.3)
+plt.ylabel('number of licks')
+plt.xlabel('individual Trials')
 ### TROUBLESHOOTING
 '''
 allLickCount[allLickCount['Trialcount']>20]
