@@ -3,6 +3,8 @@
 ####################################
 
 import pandas as  pd
+import glob
+import os
 import scipy.io
 import logging
 
@@ -52,7 +54,7 @@ class matExtraction:
 		'''
 		tmp = pd.read_csv(self.filenamepd)
 		matflo = self.extractMatfile()
-		dat = pd.merge(allDat, tmp, on='Trial')
+		dat = pd.merge(matflo, tmp, on='Trial')
 		dat['sID'] = self.sID
 		dat['session'] = self.session
 
@@ -60,8 +62,8 @@ class matExtraction:
 		### --------------------------------------------------------------------------
 		dat.loc[(dat['GoNoGo']==1) & (dat['Correct']==1), 'category'] = 'Hit'
 		dat.loc[(dat['GoNoGo']==1) & (dat['Correct']==0), 'category'] = 'Miss'
-		dat.loc[(dat['GoNoGo']==0) & (dat['Correct']==1), 'category'] = 'FA'
-		dat.loc[(dat['GoNoGo']==0) & (dat['Correct']==0), 'category'] = 'CR'
+		dat.loc[(dat['GoNoGo']==0) & (dat['Correct']==0), 'category'] = 'FA'
+		dat.loc[(dat['GoNoGo']==0) & (dat['Correct']==1), 'category'] = 'CR'
 
 		return dat
 
@@ -95,7 +97,10 @@ class matExtraction:
 
 		### custom dat category based on the definition of pre and post
 		dat.loc[(dat['state.mat1']>=3) & (dat['state.mat1']<=5), 'stateCategory'] = 'pre'
-		dat.loc[(dat['state.mat1']<=2) | (dat['state.mat1']==11), 'stateCategory'] = 'post'
+		## there are issue with the 0 see
+		 ### 'Y:\\Sheldon\\pole_localization\\.PoleLocalization001\\PoleLocalization_coh1_licks\\1035\\20220901\\202291122147.mat'
+		 ## trial 142
+		dat.loc[(dat['state.mat1']==1) | (dat['state.mat1']==2) | (dat['state.mat1']==11), 'stateCategory'] = 'post'
 		dat.loc[(dat['state.mat1']==10), 'stateCategory'] = 'drinking'
 
 		### get the lick count information
@@ -120,10 +125,10 @@ allFiles = glob.glob(mpath+'/**/*.mat', recursive = True)
 # the destination folder needs to be specified
 fullList = [x.split(os.sep)[-3]+os.sep+x.split(os.sep)[-2] for x in allFiles]
 duplicates = [x for x in fullList if fullList.count(x) > 1]
-pd.DataFrame(duplicates).to_csv(r'C:\Users\Windows\Desktop\WDIL_lick\output'+os.sep+'duplicates.csv')
+pd.DataFrame(duplicates).to_csv(r'C:\git\WDIL_lick\output'+os.sep+'duplicates.csv')
 
 ## create a log file for error during the loop
-logging.basicConfig(filename=r'C:\Users\Windows\Desktop\lick.log', filemode='w', level=logging.INFO)
+logging.basicConfig(filename=r'C:\git\WDIL_lick\output\lick.log', filemode='w', level=logging.INFO)
 
 
 #### combine this for all the files
@@ -148,5 +153,16 @@ allrespTime = pd.concat(allrespTime)
 allLickCount = pd.concat(allLickCount)
 
 ## save data to specific destination folder
-allrespTime.to_csv(r'C:\Users\Windows\Desktop\WDIL_lick\output'+os.sep+'respTime.csv')
-allLickCount.to_csv(r'C:\Users\Windows\Desktop\WDIL_lick\output'+os.sep+'lickCount.csv')
+allrespTime.to_csv(r'C:\git\WDIL_lick\output'+os.sep+'respTime.csv')
+allLickCount.to_csv(r'C:\git\WDIL_lick\output'+os.sep+'lickCount.csv')
+
+
+### TROUBLESHOOTING
+'''
+allLickCount[allLickCount['Trialcount']>20]
+
+[x for x in allFiles if '20220829' in x]
+
+t = matExtraction(j)
+a = t.extractMatfile()
+a.to_csv(r'C:\git\WDIL_lick\output'+os.sep+'troubleShoot.csv')'''
