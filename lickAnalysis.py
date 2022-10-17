@@ -8,6 +8,7 @@ import os
 import scipy.io
 import logging
 import matplotlib.pyplot as plt
+import numpy as np
 
 def quickConversion(tmp, myCol=None):
     tmp = tmp.reset_index()
@@ -28,9 +29,17 @@ class matExtraction:
 		
 		## get the genotype 
 		mainDir = os.path.dirname(os.path.dirname(os.path.dirname(matfileName)))
-		tmp = pd.read_excel(glob.glob(mainDir+os.sep+'*xlsx')[0])
-		self.geno = tmp.loc[tmp['sID']== int(self.sID),'geno'].item()
-		self.sex = tmp.loc[tmp['sID']== int(self.sID),'sex'].item()
+		## to switch to long format in case excel is not
+		## b = pd.melt(b, id_vars=['sID', 'geno', 'sex', 'Box#'])
+		self.excelRef = pd.read_csv(glob.glob(mainDir+os.sep+'animal list.csv')[0])
+		self.geno = np.unique(self.excelRef.loc[self.excelRef['sID']== int(self.sID),'geno'])[0]
+		self.sex = np.unique(self.excelRef.loc[self.excelRef['sID']== int(self.sID),'sex'])[0]
+		self.box = np.unique(self.excelRef.loc[self.excelRef['sID']== int(self.sID),'box'])[0]
+
+		if not self.excelRef.loc[(self.excelRef['sID']== int(self.sID)) & (self.excelRef['session']== int(self.session)),'session'].empty:
+			self.camDay = self.excelRef.loc[(self.excelRef['sID']== int(self.sID)) & (self.excelRef['session']== int(self.session)),'session'].values.astype(int).astype(str)[0]
+			self.camID = self.excelRef.loc[(self.excelRef['sID']== int(self.sID)) & (self.excelRef['session']== int(self.session)),'cam'].values[0]
+			self.camRef = pd.DataFrame({'cam':[self.camID], 'session':[self.camDay]})
 
 	def extractMatfile(self):
 		'''
@@ -65,6 +74,14 @@ class matExtraction:
 		dat['session'] = self.session
 		dat['geno'] = self.geno
 		dat['sex'] = self.sex
+		dat['box'] = self.box
+
+		if not self.excelRef.loc[(self.excelRef['sID']== int(self.sID)) & (self.excelRef['session']== int(self.session)),'session'].empty:
+			dat['camDay'] = self.camDay
+			dat['camID']  = self.camID
+		else:
+			dat['camDay'] = 'NA'
+			dat['camID'] = 'NA'
 
 		### get the category 
 		### --------------------------------------------------------------------------
@@ -88,10 +105,10 @@ class matExtraction:
 		resp = dat.loc[(dat['state.mat1']==7) & (dat['state.mat2']==8), ['sID','session','Trial', 'time.s', 'category']]
 		resp.rename(columns = {'time.s':'timeStart'}, inplace = True)
 
-		respEnd = dat.loc[(dat['state.mat1']==8) & (dat['state.mat2']==9) & (dat['lick.trigg']==1), ['sID','session','Trial', 'time.s']]
+		respEnd = dat.loc[(dat['state.mat1']==8) & (dat['state.mat2']==9) & (dat['lick.trigg']==1), ['sID','session','geno', 'sex','box', 'camID', 'camDay', 'Trial', 'time.s']]
 		respEnd.rename(columns = {'time.s':'timeEnd'}, inplace = True)
 
-		respTime = pd.merge(resp, respEnd, on=['sID','Trial','session', 'geno', 'sex'])
+		respTime = pd.merge(resp, respEnd, on=['sID','Trial','session'])
 		respTime['respTime'] = respTime['timeEnd']-respTime['timeStart']
 
 		return respTime
@@ -112,8 +129,8 @@ class matExtraction:
 		dat.loc[(dat['state.mat1']==10), 'stateCategory'] = 'drinking'
 
 		### get the lick count information
-		dat = dat[['sID', 'session', 'Trial', 'category', 'stateCategory']]
-		summary = dat.groupby(['sID', 'session', 'Trial', 'category', 'stateCategory']).agg({'Trial':['count']})
+		dat = dat[['sID','session','geno', 'sex','box',  'camID', 'camDay', 'Trial', 'category', 'stateCategory']]
+		summary = dat.groupby(['sID','session','geno', 'sex','box',  'camID', 'camDay', 'Trial', 'category', 'stateCategory']).agg({'Trial':['count']})
 		summary = quickConversion(summary)
 
 		return summary
@@ -147,15 +164,15 @@ for i,j in enumerate(allFiles):
 	print(str(i)+'/'+str(len(allFiles)))
 	print(j)
 
-	try:
-		t = matExtraction(j)
-		tmpART = t.getResponseTime()
-		tmpALC = t.getTheLickCount()
+	# try:
+	t = matExtraction(j)
+	tmpART = t.getResponseTime()
+	tmpALC = t.getTheLickCount()
 
-		allrespTime.append(tmpART)
-		allLickCount.append(tmpALC)
-	except:
-		logging.info(j)
+	allrespTime.append(tmpART)
+	allLickCount.append(tmpALC)
+	# except:
+	# 	logging.info(j)
 
 allrespTime = pd.concat(allrespTime)
 allLickCount = pd.concat(allLickCount)
@@ -222,7 +239,7 @@ plt.xlabel('individual Trials')
 '''
 allLickCount[allLickCount['Trialcount']>20]
 
-[x for x in allFiles if '20220829' in x]
+[x for x in allFiles if '20220706' in x]
 
 t = matExtraction(j)
 a = t.extractMatfile()
