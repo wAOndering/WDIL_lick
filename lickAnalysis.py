@@ -1,7 +1,9 @@
+
 ####################################
 ## FUNCTIONS
 ####################################
-
+import warnings
+warnings.simplefilter("ignore")
 import pandas as  pd
 import glob
 import os
@@ -9,6 +11,7 @@ import scipy.io
 import logging
 import matplotlib.pyplot as plt
 import numpy as np
+import re
 
 def quickConversion(tmp, myCol=None):
     tmp = tmp.reset_index()
@@ -25,13 +28,22 @@ class matExtraction:
 		self.filename_mat = matfileName
 		self.sID = matfileName.split(os.sep)[-3]
 		self.session = matfileName.split(os.sep)[-2]
-		self.filenamepd = glob.glob(os.path.dirname(matfileName)+os.sep+'*.csv')[0]
+
+		## get all the files except the matfiles mix based on cohort sometimes csv sometimes xlsx
+		tmpGlob = set(glob.glob(os.path.dirname(matfileName)+os.sep+'*'))- set(glob.glob(os.path.dirname(matfileName)+os.sep+'*.mat'))
+		self.filenamepd = list(tmpGlob)[0]
 		
 		## get the genotype 
 		mainDir = os.path.dirname(os.path.dirname(os.path.dirname(matfileName)))
 		## to switch to long format in case excel is not
 		## b = pd.melt(b, id_vars=['sID', 'geno', 'sex', 'Box#'])
-		self.excelRef = pd.read_csv(glob.glob(mainDir+os.sep+'animal list.csv')[0])
+		tmpAni = glob.glob(mainDir+os.sep+'animal*list*')[0]
+		if '.csv' in tmpAni:
+			self.excelRef = pd.read_csv(tmpAni)
+		elif '.xls' in tmpAni:
+			self.excelRef = pd.read_excel(tmpAni)
+		else:
+			print("ERROR: make sure the reference excel file is name 'animal list' in the format 'csv' or 'xlsx' and located in the "+ mainDir)
 		self.geno = np.unique(self.excelRef.loc[self.excelRef['sID']== int(self.sID),'geno'])[0]
 		self.sex = np.unique(self.excelRef.loc[self.excelRef['sID']== int(self.sID),'sex'])[0]
 		self.box = np.unique(self.excelRef.loc[self.excelRef['sID']== int(self.sID),'box'])[0]
@@ -67,7 +79,16 @@ class matExtraction:
 		'''
 		reading of the corresponding csv file giving the output if correct or not
 		'''
-		tmp = pd.read_csv(self.filenamepd)
+		if '.csv' in self.filenamepd: 
+			tmp = pd.read_csv(self.filenamepd)
+		elif '.xlsx' in self.filenamepd:
+			tmp = pd.read_excel(self.filenamepd)
+		else:
+			print('ERROR: no reference excel file or duplicates')
+
+		# reformat the columns name 
+		tmp.columns = [re.sub('[/?#]','',x) for x in tmp.columns]
+
 		matflo = self.extractMatfile()
 		dat = pd.merge(matflo, tmp, on='Trial')
 		dat['sID'] = self.sID
@@ -142,18 +163,41 @@ class matExtraction:
 ## INPUT
 ####################################
 
+
+
+
+print('')
+print('-------------------------------------------')
+
 # get the files from the main folder
-mpath = r'Y:\Sheldon\pole_localization\.PoleLocalization001\PoleLocalization_coh1_licks'
+# mpath = r'Y:\Sheldon\All_WDIL\WDIL006_SyngapKO_mid_stim_1step\for_licks'
+mpath = input("Drag the FOLDER where the licks data are located and press Enter:")
+mpath = mpath.replace('\\','/')
+mpath = mpath.replace('"','')
 allFiles = glob.glob(mpath+'/**/*.mat', recursive = True)
 
+print('-------------------------------------------')
+print('')
+
+print('-------------------------------------------')
+print('NOW CHECKING FOR DUPLICATES')
 # check for error and duplicates 
 # the destination folder needs to be specified
 fullList = [x.split(os.sep)[-3]+os.sep+x.split(os.sep)[-2] for x in allFiles]
 duplicates = [x for x in fullList if fullList.count(x) > 1]
-pd.DataFrame(duplicates).to_csv(r'C:\git\WDIL_lick\output'+os.sep+'duplicates.csv')
+
+if duplicates != []:
+	print('Duplicates have been found, animals and session are the following')
+	print(duplicates)
+	print('List of duplicates have been found and are stored here:')
+	savePname = mpath+os.sep+'duplicates.csv'
+	print(savePname)
+	pd.DataFrame(duplicates).to_csv(savePname)
+print('-------------------------------------------')
+print('')
 
 ## create a log file for error during the loop
-logging.basicConfig(filename=r'C:\git\WDIL_lick\output\lick.log', filemode='w', level=logging.INFO)
+logging.basicConfig(filename=mpath+os.sep+'licksAnalysisError.log', filemode='w', level=logging.INFO)
 
 
 #### combine this for all the files
@@ -164,83 +208,61 @@ for i,j in enumerate(allFiles):
 	print(str(i)+'/'+str(len(allFiles)))
 	print(j)
 
-	# try:
-	t = matExtraction(j)
-	tmpART = t.getResponseTime()
-	tmpALC = t.getTheLickCount()
+	try:
+		t = matExtraction(j)
+		tmpART = t.getResponseTime()
+		tmpALC = t.getTheLickCount()
 
-	allrespTime.append(tmpART)
-	allLickCount.append(tmpALC)
-	# except:
-	# 	logging.info(j)
+		allrespTime.append(tmpART)
+		allLickCount.append(tmpALC)
+	except:
+	 	logging.info(j)
 
 allrespTime = pd.concat(allrespTime)
 allLickCount = pd.concat(allLickCount)
 
 ## save data to specific destination folder
-allrespTime.to_csv(r'C:\git\WDIL_lick\output'+os.sep+'respTime.csv')
-allLickCount.to_csv(r'C:\git\WDIL_lick\output'+os.sep+'lickCount.csv')
+allrespTime.to_csv(mpath+os.sep+'respTime.csv')
+allLickCount.to_csv(mpath+os.sep+'lickCount.csv')
 
 
 
+# ### TROUBLESHOOTING
+# ### convert session to days
 
+# allLickCount = allLickCount.sort_values(by=['sID','session','Trial'])
 
+# dayslist = []
+# for i in np.unique(allLickCount['sID']):
+# 	print(i)
+# 	tmpDat = allLickCount[allLickCount['sID']==i]
+# 	tmpDat = pd.DataFrame({'session': np.unique(tmpDat['session'])})
+# 	tmpDat = tmpDat.reset_index()
+# 	tmpDat.columns = ['days','session']
+# 	tmpDat['sID'] = i
+# 	dayslist.append(tmpDat)
+# dayslist = pd.concat(dayslist)
 
+# allLickCount = pd.merge(dayslist, allLickCount, on=['session','sID'])
+# plt.bar(allLickCount['days'], allLickCount['Trialcount'])
 
+# f, ax = plt.subplots(17,1)
 
+# uniqueID = np.unique(allLickCount['sID'])
+# for i,j in zip(ax,uniqueID):
+# 	print(i,j)
+# 	tmp = allLickCount[allLickCount['sID'] == j]
+# 	i.bar(tmp['days'], tmp['Trialcount'])
 
+# sns.distplot(allLickCount['Trialcount'])
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-### TROUBLESHOOTING
-### convert session to days
-
-allLickCount = allLickCount.sort_values(by=['sID','session','Trial'])
-
-dayslist = []
-for i in np.unique(allLickCount['sID']):
-	print(i)
-	tmpDat = allLickCount[allLickCount['sID']==i]
-	tmpDat = pd.DataFrame({'session': np.unique(tmpDat['session'])})
-	tmpDat = tmpDat.reset_index()
-	tmpDat.columns = ['days','session']
-	tmpDat['sID'] = i
-	dayslist.append(tmpDat)
-dayslist = pd.concat(dayslist)
-
-allLickCount = pd.merge(dayslist, allLickCount, on=['session','sID'])
-plt.bar(allLickCount['days'], allLickCount['Trialcount'])
-
-f, ax = plt.subplots(17,1)
-
-uniqueID = np.unique(allLickCount['sID'])
-for i,j in zip(ax,uniqueID):
-	print(i,j)
-	tmp = allLickCount[allLickCount['sID'] == j]
-	i.bar(tmp['days'], tmp['Trialcount'])
-
-sns.distplot(allLickCount['Trialcount'])
-
-plt.plot(allLickCount['Trialcount'],'.', alpha=0.3)
-plt.ylabel('number of licks')
-plt.xlabel('individual Trials')
-### TROUBLESHOOTING
-'''
-allLickCount[allLickCount['Trialcount']>20]
-
-[x for x in allFiles if '20220706' in x]
-
-t = matExtraction(j)
-a = t.extractMatfile()
-a.to_csv(r'C:\git\WDIL_lick\output'+os.sep+'troubleShoot.csv')'''
+# plt.plot(allLickCount['Trialcount'],'.', alpha=0.3)
+# plt.ylabel('number of licks')
+# plt.xlabel('individual Trials')
+# ### TROUBLESHOOTING
+# '''
+# allLickCount[allLickCount['Trialcount']>20]
+# [x for x in allFiles if '20220706' in x]
+# t = matExtraction(j)
+# a = t.extractMatfile()
+# a.to_csv(r'C:\git\WDIL_lick\output'+os.sep+'troubleShoot.csv')'''
