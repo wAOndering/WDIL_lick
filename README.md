@@ -7,9 +7,8 @@ Combine `mat` file with `excel` file to determine the lick rate during different
 *  install [Anaconda](https://www.anaconda.com/)
 *  Start Anaconda command prompt
 *  In the command prompt type: `python` then `space`
-*  Drag and drop the file `scatterTest.py` then press `Enter`
+*  Drag and drop the file `lickAnalysis.py` then press `Enter`
 *  Follow the instructions<!-- add `space` before drag and drop the **Folder** containing the files of interest -->
-		* **IMPORTANT:** the software relies on using files with file name `ffluc` and `nanoluc` typo in the file name will fail execution
 *  press `Enter`
 
 ## outputs:
