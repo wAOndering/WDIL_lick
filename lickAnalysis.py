@@ -87,7 +87,7 @@ class matExtraction:
 			print('ERROR: no reference excel file or duplicates')
 
 		# reformat the columns name 
-		tmp.columns = [re.sub('[/?#]','',x) for x in tmp.columns]
+		tmp.columns = [re.sub('[/?#_ ]','',x) for x in tmp.columns]
 
 		matflo = self.extractMatfile()
 		dat = pd.merge(matflo, tmp, on='Trial')
